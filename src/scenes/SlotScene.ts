@@ -7,9 +7,12 @@ export default class SlotScene extends Phaser.Scene {
   private bet = SLOT_CONFIG.defaultBet
   private win = 0
 
-  // Stores the 15 visible slot symbol text objects.
+  private isSpinning = false
+
+  // Stores the visible symbol text objects.
   // Structure: [reel][row]
   private symbolTexts: Phaser.GameObjects.Text[][] = []
+  private currentBoard: string[][] = []
 
   constructor() {
     super('SlotScene')
@@ -72,18 +75,19 @@ export default class SlotScene extends Phaser.Scene {
       .setStrokeStyle(4, 0x55555f)
 
     this.symbolTexts = []
+    this.currentBoard = []
 
     for (let reel = 0; reel < SLOT_CONFIG.reels; reel += 1) {
       const reelTexts: Phaser.GameObjects.Text[] = []
+      const reelData: string[] = []
 
       for (let row = 0; row < SLOT_CONFIG.rows; row += 1) {
         const x = startX + reel * reelWidth + reelWidth / 2
         const y = startY + row * symbolHeight + symbolHeight / 2
 
-        const symbolIndex =
-          (reel * SLOT_CONFIG.rows + row) % SLOT_SYMBOLS.length
+        const symbol = this.getRandomSymbol()
 
-        const symbol = SLOT_SYMBOLS[symbolIndex]
+        reelData.push(symbol.id)
 
         this.add
           .rectangle(
@@ -109,6 +113,7 @@ export default class SlotScene extends Phaser.Scene {
       }
 
       this.symbolTexts.push(reelTexts)
+      this.currentBoard.push(reelData)
     }
   }
 
@@ -184,6 +189,10 @@ export default class SlotScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     minusButton.on('pointerdown', () => {
+      if (this.isSpinning) {
+        return
+      }
+
       if (betIndex > 0) {
         betIndex -= 1
         this.bet = betOptions[betIndex]
@@ -194,6 +203,10 @@ export default class SlotScene extends Phaser.Scene {
     })
 
     plusButton.on('pointerdown', () => {
+      if (this.isSpinning) {
+        return
+      }
+
       if (betIndex < betOptions.length - 1) {
         betIndex += 1
         this.bet = betOptions[betIndex]
@@ -236,18 +249,109 @@ export default class SlotScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     spinButton.on('pointerover', () => {
-      spinButton.setFillStyle(0x50505c)
+      if (!this.isSpinning) {
+        spinButton.setFillStyle(0x50505c)
+      }
     })
 
     spinButton.on('pointerout', () => {
-      spinButton.setFillStyle(0x34343d)
+      if (!this.isSpinning) {
+        spinButton.setFillStyle(0x34343d)
+      }
     })
 
     spinButton.on('pointerdown', () => {
-      statusText.setText(`READY TO SPIN WITH BET ${this.bet}`)
+      if (this.isSpinning) {
+        return
+      }
+
+      this.startSpin(spinButton, statusText)
     })
 
     void balanceText
     void winText
+  }
+
+  private getRandomSymbol() {
+    const randomIndex = Phaser.Math.Between(
+      0,
+      SLOT_SYMBOLS.length - 1,
+    )
+
+    return SLOT_SYMBOLS[randomIndex]
+  }
+  private printBoardToConsole(): void {
+    console.table(
+      this.currentBoard.map((reel, reelIndex) => ({
+        reel: reelIndex + 1,
+        row1: reel[0],
+        row2: reel[1],
+        row3: reel[2],
+      })),
+    )
+  }
+
+  private startSpin(
+    spinButton: Phaser.GameObjects.Rectangle,
+    statusText: Phaser.GameObjects.Text,
+  ): void {
+    this.isSpinning = true
+
+    statusText.setText('SPINNING...')
+    spinButton.setFillStyle(0x202026)
+
+    const spinTimers: Phaser.Time.TimerEvent[] = []
+
+    for (let reel = 0; reel < SLOT_CONFIG.reels; reel += 1) {
+      const timer = this.time.addEvent({
+        delay: 80,
+        loop: true,
+
+        callback: () => {
+          for (let row = 0; row < SLOT_CONFIG.rows; row += 1) {
+            const symbol = this.getRandomSymbol()
+
+            this.symbolTexts[reel][row].setText(symbol.label)
+          }
+        },
+      })
+
+      spinTimers.push(timer)
+
+      const stopDelay = 900 + reel * 300
+
+      this.time.delayedCall(stopDelay, () => {
+        spinTimers[reel].remove(false)
+
+        for (let row = 0; row < SLOT_CONFIG.rows; row += 1) {
+          const finalSymbol = this.getRandomSymbol()
+
+          this.currentBoard[reel][row] = finalSymbol.id
+
+          this.symbolTexts[reel][row].setText(finalSymbol.label)
+        }
+
+        if (reel === SLOT_CONFIG.reels - 1) {
+          this.finishSpin(spinButton, statusText)
+        }
+      })
+    }
+  }
+
+  private finishSpin(
+    spinButton: Phaser.GameObjects.Rectangle,
+    statusText: Phaser.GameObjects.Text,
+  ): void {
+    this.isSpinning = false
+
+    spinButton.setFillStyle(0x34343d)
+
+    statusText.setText('SPIN COMPLETE')
+
+    this.printBoardToConsole()
+    
+    this.time.delayedCall(600, () => {
+      statusText.setText('READY')
+    })
   }
 }
