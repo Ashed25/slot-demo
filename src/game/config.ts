@@ -10,4 +10,10 @@ export const SLOT_CONFIG = {
   defaultBet: 10,
 
   betOptions: [1, 2, 5, 10, 20, 50],
+
+  freeSpins: {
+    threeScatters: 8,
+    fourScatters: 12,
+    fiveScatters: 15,
+  },
 }

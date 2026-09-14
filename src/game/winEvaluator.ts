@@ -27,45 +27,58 @@ export function evaluateWins(
   const lineWins: LineWin[] = []
 
   PAYLINES.forEach((payline, paylineIndex) => {
-    const firstRow = payline[0]
-    const firstSymbol = board[0][firstRow]
+    const lineSymbols = payline.map(
+      (row, reel) => board[reel][row],
+    )
 
-    // Wild and Scatter get special logic on Day 4.
-    // If the first symbol has no normal paytable entry,
-    // this line is ignored for now.
-    const symbolPaytable = PAYTABLE[firstSymbol]
+    // Scatter never behaves like a normal payline symbol.
+    if (lineSymbols[0] === 'scatter') {
+      return
+    }
+
+    // Find the first normal symbol.
+    // This allows paylines beginning with one or more Wilds.
+    const targetSymbol = lineSymbols.find(
+      (symbol) =>
+        symbol !== 'wild' &&
+        symbol !== 'scatter',
+    )
+
+    // A line made entirely of Wild/Scatter currently has
+    // no normal-symbol payout rule.
+    if (!targetSymbol) {
+      return
+    }
+
+    const symbolPaytable = PAYTABLE[targetSymbol]
 
     if (!symbolPaytable) {
       return
     }
 
-    let matchCount = 1
+    let matchCount = 0
+    const positions: WinningPosition[] = []
 
-    const positions: WinningPosition[] = [
-      {
-        reel: 0,
-        row: firstRow,
-      },
-    ]
+    for (let reel = 0; reel < lineSymbols.length; reel += 1) {
+      const symbol = lineSymbols[reel]
 
-    // Check reels 2–5 from left to right.
-    for (let reel = 1; reel < payline.length; reel += 1) {
-      const row = payline[reel]
-      const symbol = board[reel][row]
-
-      if (symbol === firstSymbol) {
+      if (
+        symbol === targetSymbol ||
+        symbol === 'wild'
+      ) {
         matchCount += 1
 
         positions.push({
           reel,
-          row,
+          row: payline[reel],
         })
-      } else {
-        break
+
+        continue
       }
+
+      break
     }
 
-    // Normal symbols only pay for 3, 4 or 5 matches.
     if (matchCount < 3) {
       return
     }
@@ -79,7 +92,7 @@ export function evaluateWins(
 
     lineWins.push({
       paylineIndex,
-      symbolId: firstSymbol,
+      symbolId: targetSymbol,
       matchCount,
       multiplier,
       payout,

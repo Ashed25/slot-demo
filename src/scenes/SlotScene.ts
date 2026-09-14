@@ -10,11 +10,14 @@ export default class SlotScene extends Phaser.Scene {
 
   private isSpinning = false
 
-  // Stores the visible symbol text objects.
+  private freeSpinsRemaining = 0
+  private isFreeSpinMode = false
+
+  // Visible slot symbols.
   // Structure: [reel][row]
   private symbolTexts: Phaser.GameObjects.Text[][] = []
 
-  // Stores the actual internal result of the 5x3 board.
+  // Internal board result.
   // Structure: [reel][row]
   private currentBoard: string[][] = []
 
@@ -125,27 +128,36 @@ export default class SlotScene extends Phaser.Scene {
     const panelY = 610
 
     const balanceText = this.add
-      .text(140, panelY, `BALANCE\n${this.balance.toLocaleString()}`, {
+      .text(110, panelY, `BALANCE\n${this.balance.toLocaleString()}`, {
         fontFamily: 'Arial',
-        fontSize: '20px',
+        fontSize: '19px',
         color: '#ffffff',
         align: 'center',
       })
       .setOrigin(0.5)
 
     const betText = this.add
-      .text(370, panelY, `BET\n${this.bet}`, {
+      .text(330, panelY, `BET\n${this.bet}`, {
         fontFamily: 'Arial',
-        fontSize: '20px',
+        fontSize: '19px',
         color: '#ffffff',
         align: 'center',
       })
       .setOrigin(0.5)
 
     const winText = this.add
-      .text(570, panelY, `WIN\n${this.win}`, {
+      .text(535, panelY, `WIN\n${this.win}`, {
         fontFamily: 'Arial',
-        fontSize: '20px',
+        fontSize: '19px',
+        color: '#ffffff',
+        align: 'center',
+      })
+      .setOrigin(0.5)
+
+    const freeSpinText = this.add
+      .text(675, panelY, 'FREE SPINS\n0', {
+        fontFamily: 'Arial',
+        fontSize: '17px',
         color: '#ffffff',
         align: 'center',
       })
@@ -162,46 +174,38 @@ export default class SlotScene extends Phaser.Scene {
     const betOptions = SLOT_CONFIG.betOptions
     let betIndex = betOptions.indexOf(this.bet)
 
-    // -------------------------
-    // BET DECREASE BUTTON
-    // -------------------------
-
     const minusButton = this.add
-      .rectangle(285, panelY, 55, 55, 0x34343d)
+      .rectangle(245, panelY, 50, 50, 0x34343d)
       .setStrokeStyle(2, 0xffffff)
       .setInteractive({
         useHandCursor: true,
       })
 
     this.add
-      .text(285, panelY, '-', {
-        fontFamily: 'Arial',
-        fontSize: '32px',
-        color: '#ffffff',
-      })
-      .setOrigin(0.5)
-
-    // -------------------------
-    // BET INCREASE BUTTON
-    // -------------------------
-
-    const plusButton = this.add
-      .rectangle(455, panelY, 55, 55, 0x34343d)
-      .setStrokeStyle(2, 0xffffff)
-      .setInteractive({
-        useHandCursor: true,
-      })
-
-    this.add
-      .text(455, panelY, '+', {
+      .text(245, panelY, '-', {
         fontFamily: 'Arial',
         fontSize: '30px',
         color: '#ffffff',
       })
       .setOrigin(0.5)
 
+    const plusButton = this.add
+      .rectangle(415, panelY, 50, 50, 0x34343d)
+      .setStrokeStyle(2, 0xffffff)
+      .setInteractive({
+        useHandCursor: true,
+      })
+
+    this.add
+      .text(415, panelY, '+', {
+        fontFamily: 'Arial',
+        fontSize: '28px',
+        color: '#ffffff',
+      })
+      .setOrigin(0.5)
+
     minusButton.on('pointerdown', () => {
-      if (this.isSpinning) {
+      if (this.isSpinning || this.isFreeSpinMode) {
         return
       }
 
@@ -215,7 +219,7 @@ export default class SlotScene extends Phaser.Scene {
     })
 
     plusButton.on('pointerdown', () => {
-      if (this.isSpinning) {
+      if (this.isSpinning || this.isFreeSpinMode) {
         return
       }
 
@@ -229,7 +233,7 @@ export default class SlotScene extends Phaser.Scene {
     })
 
     minusButton.on('pointerover', () => {
-      if (!this.isSpinning) {
+      if (!this.isSpinning && !this.isFreeSpinMode) {
         minusButton.setFillStyle(0x50505c)
       }
     })
@@ -239,7 +243,7 @@ export default class SlotScene extends Phaser.Scene {
     })
 
     plusButton.on('pointerover', () => {
-      if (!this.isSpinning) {
+      if (!this.isSpinning && !this.isFreeSpinMode) {
         plusButton.setFillStyle(0x50505c)
       }
     })
@@ -248,19 +252,15 @@ export default class SlotScene extends Phaser.Scene {
       plusButton.setFillStyle(0x34343d)
     })
 
-    // -------------------------
-    // SPIN BUTTON
-    // -------------------------
-
     const spinButton = this.add
-      .rectangle(820, panelY, 150, 70, 0x34343d)
+      .rectangle(850, panelY, 140, 70, 0x34343d)
       .setStrokeStyle(3, 0xffffff)
       .setInteractive({
         useHandCursor: true,
       })
 
     this.add
-      .text(820, panelY, 'SPIN', {
+      .text(850, panelY, 'SPIN', {
         fontFamily: 'Arial',
         fontSize: '26px',
         color: '#ffffff',
@@ -269,7 +269,7 @@ export default class SlotScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     spinButton.on('pointerover', () => {
-      if (!this.isSpinning) {
+      if (!this.isSpinning && !this.isFreeSpinMode) {
         spinButton.setFillStyle(0x50505c)
       }
     })
@@ -281,7 +281,7 @@ export default class SlotScene extends Phaser.Scene {
     })
 
     spinButton.on('pointerdown', () => {
-      if (this.isSpinning) {
+      if (this.isSpinning || this.isFreeSpinMode) {
         return
       }
 
@@ -290,6 +290,7 @@ export default class SlotScene extends Phaser.Scene {
         return
       }
 
+      // Normal spins deduct the bet.
       this.balance -= this.bet
       this.win = 0
 
@@ -306,6 +307,8 @@ export default class SlotScene extends Phaser.Scene {
         statusText,
         balanceText,
         winText,
+        freeSpinText,
+        false,
       )
     })
   }
@@ -324,6 +327,42 @@ export default class SlotScene extends Phaser.Scene {
   }
 
   // -------------------------
+  // SCATTER SYSTEM
+  // -------------------------
+
+  private countScatters(): number {
+    let scatterCount = 0
+
+    for (const reel of this.currentBoard) {
+      for (const symbol of reel) {
+        if (symbol === 'scatter') {
+          scatterCount += 1
+        }
+      }
+    }
+
+    return scatterCount
+  }
+
+  private calculateFreeSpinAward(
+    scatterCount: number,
+  ): number {
+    if (scatterCount >= 5) {
+      return SLOT_CONFIG.freeSpins.fiveScatters
+    }
+
+    if (scatterCount === 4) {
+      return SLOT_CONFIG.freeSpins.fourScatters
+    }
+
+    if (scatterCount === 3) {
+      return SLOT_CONFIG.freeSpins.threeScatters
+    }
+
+    return 0
+  }
+
+  // -------------------------
   // DEBUG BOARD
   // -------------------------
 
@@ -339,7 +378,7 @@ export default class SlotScene extends Phaser.Scene {
   }
 
   // -------------------------
-  // TEST WIN BOARD
+  // DAY 3 TEST BOARD
   // -------------------------
 
   private loadTestWinBoard(): void {
@@ -353,6 +392,37 @@ export default class SlotScene extends Phaser.Scene {
 
     this.currentBoard = testBoard
 
+    this.updateVisibleBoard()
+  }
+  
+  private loadTestScatterBoard(): void {
+  const testBoard = [
+    ['scatter', 'a', 'k'],
+    ['ruby', 'q', 'scatter'],
+    ['bell', 'naga', 'j'],
+    ['peacock', 'a', 'k'],
+    ['q', 'scatter', 'ruby'],
+  ]
+
+  this.currentBoard = testBoard
+
+  this.updateVisibleBoard()
+}
+  private loadTestWildBoard(): void {
+  const testBoard = [
+    ['ruby', 'a', 'k'],
+    ['wild', 'q', 'j'],
+    ['ruby', 'bell', 'a'],
+    ['ruby', 'naga', 'k'],
+    ['j', 'peacock', 'q'],
+  ]
+
+  this.currentBoard = testBoard
+
+  this.updateVisibleBoard()
+}
+
+  private updateVisibleBoard(): void {
     for (let reel = 0; reel < SLOT_CONFIG.reels; reel += 1) {
       for (let row = 0; row < SLOT_CONFIG.rows; row += 1) {
         const symbolId =
@@ -374,7 +444,7 @@ export default class SlotScene extends Phaser.Scene {
   }
 
   // -------------------------
-  // SPIN SYSTEM
+  // NORMAL / FREE SPIN ENGINE
   // -------------------------
 
   private startSpin(
@@ -382,10 +452,17 @@ export default class SlotScene extends Phaser.Scene {
     statusText: Phaser.GameObjects.Text,
     balanceText: Phaser.GameObjects.Text,
     winText: Phaser.GameObjects.Text,
+    freeSpinText: Phaser.GameObjects.Text,
+    isFreeSpin: boolean,
   ): void {
     this.isSpinning = true
 
-    statusText.setText('SPINNING...')
+    if (isFreeSpin) {
+      statusText.setText('FREE SPIN...')
+    } else {
+      statusText.setText('SPINNING...')
+    }
+
     spinButton.setFillStyle(0x202026)
 
     const spinTimers: Phaser.Time.TimerEvent[] = []
@@ -430,6 +507,8 @@ export default class SlotScene extends Phaser.Scene {
             statusText,
             balanceText,
             winText,
+            freeSpinText,
+            isFreeSpin,
           )
         }
       })
@@ -445,17 +524,15 @@ export default class SlotScene extends Phaser.Scene {
     statusText: Phaser.GameObjects.Text,
     balanceText: Phaser.GameObjects.Text,
     winText: Phaser.GameObjects.Text,
+    freeSpinText: Phaser.GameObjects.Text,
+    isFreeSpin: boolean,
   ): void {
-    // TEMPORARY TEST:
-    // Force a known 4-Ruby winning board.
-
     const evaluation = evaluateWins(
       this.currentBoard,
       this.bet,
     )
 
     this.win = evaluation.totalWin
-
     this.balance += this.win
 
     balanceText.setText(
@@ -468,17 +545,27 @@ export default class SlotScene extends Phaser.Scene {
 
     this.highlightWins(evaluation.lineWins)
 
+    // Count Scatter symbols anywhere on the board.
+    const scatterCount = this.countScatters()
+
+    const awardedFreeSpins =
+      this.calculateFreeSpinAward(scatterCount)
+
+    // Free Spins can also retrigger additional Free Spins.
+    if (awardedFreeSpins > 0) {
+      this.freeSpinsRemaining +=
+        awardedFreeSpins
+
+      this.isFreeSpinMode = true
+
+      freeSpinText.setText(
+        `FREE SPINS\n${this.freeSpinsRemaining}`,
+      )
+    }
+
     this.isSpinning = false
 
     spinButton.setFillStyle(0x34343d)
-
-    if (this.win > 0) {
-      statusText.setText(
-        `WIN ${this.win.toFixed(2)} — ${evaluation.lineWins.length} LINE(S)`,
-      )
-    } else {
-      statusText.setText('NO WIN')
-    }
 
     this.printBoardToConsole()
 
@@ -487,9 +574,126 @@ export default class SlotScene extends Phaser.Scene {
       evaluation,
     )
 
+    console.log(
+      'Scatter count:',
+      scatterCount,
+    )
+
+    console.log(
+      'Free Spins awarded:',
+      awardedFreeSpins,
+    )
+
+    // If Free Spins are available, continue automatically.
+    if (
+      this.isFreeSpinMode &&
+      this.freeSpinsRemaining > 0
+    ) {
+      if (awardedFreeSpins > 0) {
+        statusText.setText(
+          `${scatterCount} SCATTERS — +${awardedFreeSpins} FREE SPINS!`,
+        )
+      } else if (this.win > 0) {
+        statusText.setText(
+          `FREE SPIN WIN ${this.win.toFixed(2)}`,
+        )
+      } else {
+        statusText.setText('FREE SPIN COMPLETE')
+      }
+
+      this.time.delayedCall(1200, () => {
+        this.startFreeSpin(
+          spinButton,
+          statusText,
+          balanceText,
+          winText,
+          freeSpinText,
+        )
+      })
+
+      return
+    }
+
+    // No more Free Spins.
+    if (isFreeSpin) {
+      this.isFreeSpinMode = false
+
+      freeSpinText.setText('FREE SPINS\n0')
+
+      if (this.win > 0) {
+        statusText.setText(
+          `FINAL FREE SPIN WIN ${this.win.toFixed(2)}`,
+        )
+      } else {
+        statusText.setText(
+          'FREE SPINS COMPLETE',
+        )
+      }
+
+      this.time.delayedCall(1200, () => {
+        statusText.setText('READY')
+      })
+
+      return
+    }
+
+    // Normal spin with no Free Spin trigger.
+    if (this.win > 0) {
+      statusText.setText(
+        `WIN ${this.win.toFixed(2)} — ${evaluation.lineWins.length} LINE(S)`,
+      )
+    } else {
+      statusText.setText('NO WIN')
+    }
+
     this.time.delayedCall(1200, () => {
       statusText.setText('READY')
     })
+  }
+
+  // -------------------------
+  // FREE SPINS
+  // -------------------------
+
+  private startFreeSpin(
+    spinButton: Phaser.GameObjects.Rectangle,
+    statusText: Phaser.GameObjects.Text,
+    balanceText: Phaser.GameObjects.Text,
+    winText: Phaser.GameObjects.Text,
+    freeSpinText: Phaser.GameObjects.Text,
+  ): void {
+    if (this.freeSpinsRemaining <= 0) {
+      this.isFreeSpinMode = false
+
+      freeSpinText.setText('FREE SPINS\n0')
+      statusText.setText('READY')
+
+      return
+    }
+
+    // Consume one Free Spin.
+    this.freeSpinsRemaining -= 1
+
+    freeSpinText.setText(
+      `FREE SPINS\n${this.freeSpinsRemaining}`,
+    )
+
+    this.win = 0
+
+    winText.setText('WIN\n0')
+
+    this.clearWinHighlights()
+
+    // IMPORTANT:
+    // No balance deduction happens here.
+    this.startSpin(
+      spinButton,
+      statusText,
+      balanceText,
+      winText,
+      freeSpinText,
+      true,
+    )
   }
 
   // -------------------------
