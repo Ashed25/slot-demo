@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { GAME_HEIGHT, GAME_WIDTH, SLOT_CONFIG } from '../game/config'
 import { SLOT_SYMBOLS } from '../game/symbols'
+import { evaluateWins } from '../game/winEvaluator'
 
 export default class SlotScene extends Phaser.Scene {
   private balance = SLOT_CONFIG.startingBalance
@@ -12,6 +13,9 @@ export default class SlotScene extends Phaser.Scene {
   // Stores the visible symbol text objects.
   // Structure: [reel][row]
   private symbolTexts: Phaser.GameObjects.Text[][] = []
+
+  // Stores the actual internal result of the 5x3 board.
+  // Structure: [reel][row]
   private currentBoard: string[][] = []
 
   constructor() {
@@ -158,6 +162,10 @@ export default class SlotScene extends Phaser.Scene {
     const betOptions = SLOT_CONFIG.betOptions
     let betIndex = betOptions.indexOf(this.bet)
 
+    // -------------------------
+    // BET DECREASE BUTTON
+    // -------------------------
+
     const minusButton = this.add
       .rectangle(285, panelY, 55, 55, 0x34343d)
       .setStrokeStyle(2, 0xffffff)
@@ -172,6 +180,10 @@ export default class SlotScene extends Phaser.Scene {
         color: '#ffffff',
       })
       .setOrigin(0.5)
+
+    // -------------------------
+    // BET INCREASE BUTTON
+    // -------------------------
 
     const plusButton = this.add
       .rectangle(455, panelY, 55, 55, 0x34343d)
@@ -217,7 +229,9 @@ export default class SlotScene extends Phaser.Scene {
     })
 
     minusButton.on('pointerover', () => {
-      minusButton.setFillStyle(0x50505c)
+      if (!this.isSpinning) {
+        minusButton.setFillStyle(0x50505c)
+      }
     })
 
     minusButton.on('pointerout', () => {
@@ -225,12 +239,18 @@ export default class SlotScene extends Phaser.Scene {
     })
 
     plusButton.on('pointerover', () => {
-      plusButton.setFillStyle(0x50505c)
+      if (!this.isSpinning) {
+        plusButton.setFillStyle(0x50505c)
+      }
     })
 
     plusButton.on('pointerout', () => {
       plusButton.setFillStyle(0x34343d)
     })
+
+    // -------------------------
+    // SPIN BUTTON
+    // -------------------------
 
     const spinButton = this.add
       .rectangle(820, panelY, 150, 70, 0x34343d)
@@ -265,12 +285,34 @@ export default class SlotScene extends Phaser.Scene {
         return
       }
 
-      this.startSpin(spinButton, statusText)
-    })
+      if (this.balance < this.bet) {
+        statusText.setText('NOT ENOUGH BALANCE')
+        return
+      }
 
-    void balanceText
-    void winText
+      this.balance -= this.bet
+      this.win = 0
+
+      balanceText.setText(
+        `BALANCE\n${this.balance.toLocaleString()}`,
+      )
+
+      winText.setText('WIN\n0')
+
+      this.clearWinHighlights()
+
+      this.startSpin(
+        spinButton,
+        statusText,
+        balanceText,
+        winText,
+      )
+    })
   }
+
+  // -------------------------
+  // RANDOM SYMBOL
+  // -------------------------
 
   private getRandomSymbol() {
     const randomIndex = Phaser.Math.Between(
@@ -280,6 +322,11 @@ export default class SlotScene extends Phaser.Scene {
 
     return SLOT_SYMBOLS[randomIndex]
   }
+
+  // -------------------------
+  // DEBUG BOARD
+  // -------------------------
+
   private printBoardToConsole(): void {
     console.table(
       this.currentBoard.map((reel, reelIndex) => ({
@@ -291,9 +338,50 @@ export default class SlotScene extends Phaser.Scene {
     )
   }
 
+  // -------------------------
+  // TEST WIN BOARD
+  // -------------------------
+
+  private loadTestWinBoard(): void {
+    const testBoard = [
+      ['ruby', 'a', 'k'],
+      ['ruby', 'q', 'j'],
+      ['ruby', 'bell', 'a'],
+      ['ruby', 'naga', 'k'],
+      ['j', 'peacock', 'q'],
+    ]
+
+    this.currentBoard = testBoard
+
+    for (let reel = 0; reel < SLOT_CONFIG.reels; reel += 1) {
+      for (let row = 0; row < SLOT_CONFIG.rows; row += 1) {
+        const symbolId =
+          this.currentBoard[reel][row]
+
+        const symbol = SLOT_SYMBOLS.find(
+          (item) => item.id === symbolId,
+        )
+
+        if (!symbol) {
+          continue
+        }
+
+        this.symbolTexts[reel][row].setText(
+          symbol.label,
+        )
+      }
+    }
+  }
+
+  // -------------------------
+  // SPIN SYSTEM
+  // -------------------------
+
   private startSpin(
     spinButton: Phaser.GameObjects.Rectangle,
     statusText: Phaser.GameObjects.Text,
+    balanceText: Phaser.GameObjects.Text,
+    winText: Phaser.GameObjects.Text,
   ): void {
     this.isSpinning = true
 
@@ -311,7 +399,9 @@ export default class SlotScene extends Phaser.Scene {
           for (let row = 0; row < SLOT_CONFIG.rows; row += 1) {
             const symbol = this.getRandomSymbol()
 
-            this.symbolTexts[reel][row].setText(symbol.label)
+            this.symbolTexts[reel][row].setText(
+              symbol.label,
+            )
           }
         },
       })
@@ -326,32 +416,117 @@ export default class SlotScene extends Phaser.Scene {
         for (let row = 0; row < SLOT_CONFIG.rows; row += 1) {
           const finalSymbol = this.getRandomSymbol()
 
-          this.currentBoard[reel][row] = finalSymbol.id
+          this.currentBoard[reel][row] =
+            finalSymbol.id
 
-          this.symbolTexts[reel][row].setText(finalSymbol.label)
+          this.symbolTexts[reel][row].setText(
+            finalSymbol.label,
+          )
         }
 
         if (reel === SLOT_CONFIG.reels - 1) {
-          this.finishSpin(spinButton, statusText)
+          this.finishSpin(
+            spinButton,
+            statusText,
+            balanceText,
+            winText,
+          )
         }
       })
     }
   }
 
+  // -------------------------
+  // FINISH ROUND
+  // -------------------------
+
   private finishSpin(
     spinButton: Phaser.GameObjects.Rectangle,
     statusText: Phaser.GameObjects.Text,
+    balanceText: Phaser.GameObjects.Text,
+    winText: Phaser.GameObjects.Text,
   ): void {
+    // TEMPORARY TEST:
+    // Force a known 4-Ruby winning board.
+
+    const evaluation = evaluateWins(
+      this.currentBoard,
+      this.bet,
+    )
+
+    this.win = evaluation.totalWin
+
+    this.balance += this.win
+
+    balanceText.setText(
+      `BALANCE\n${this.balance.toLocaleString()}`,
+    )
+
+    winText.setText(
+      `WIN\n${this.win.toFixed(2)}`,
+    )
+
+    this.highlightWins(evaluation.lineWins)
+
     this.isSpinning = false
 
     spinButton.setFillStyle(0x34343d)
 
-    statusText.setText('SPIN COMPLETE')
+    if (this.win > 0) {
+      statusText.setText(
+        `WIN ${this.win.toFixed(2)} — ${evaluation.lineWins.length} LINE(S)`,
+      )
+    } else {
+      statusText.setText('NO WIN')
+    }
 
     this.printBoardToConsole()
-    
-    this.time.delayedCall(600, () => {
+
+    console.log(
+      'Win evaluation:',
+      evaluation,
+    )
+
+    this.time.delayedCall(1200, () => {
       statusText.setText('READY')
     })
+  }
+
+  // -------------------------
+  // WIN HIGHLIGHTING
+  // -------------------------
+
+  private clearWinHighlights(): void {
+    for (const reel of this.symbolTexts) {
+      for (const symbolText of reel) {
+        symbolText.setColor('#ffffff')
+        symbolText.setScale(1)
+      }
+    }
+  }
+
+  private highlightWins(
+    lineWins: ReturnType<typeof evaluateWins>['lineWins'],
+  ): void {
+    const highlighted = new Set<string>()
+
+    for (const lineWin of lineWins) {
+      for (const position of lineWin.positions) {
+        const key =
+          `${position.reel}-${position.row}`
+
+        if (highlighted.has(key)) {
+          continue
+        }
+
+        highlighted.add(key)
+
+        const symbolText =
+          this.symbolTexts[position.reel][position.row]
+
+        symbolText.setColor('#ffd54a')
+        symbolText.setScale(1.12)
+      }
+    }
   }
 }
