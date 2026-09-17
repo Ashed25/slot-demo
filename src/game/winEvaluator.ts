@@ -22,88 +22,136 @@ export interface WinEvaluation {
 
 export function evaluateWins(
   board: string[][],
-  bet: number,
+  totalBet: number,
 ): WinEvaluation {
   const lineWins: LineWin[] = []
 
-  PAYLINES.forEach((payline, paylineIndex) => {
-    const lineSymbols = payline.map(
-      (row, reel) => board[reel][row],
-    )
+  // IMPORTANT:
+  // The player's selected BET is now the
+  // TOTAL wager across all paylines.
+  const betPerLine =
+    totalBet / PAYLINES.length
 
-    // Scatter never behaves like a normal payline symbol.
-    if (lineSymbols[0] === 'scatter') {
-      return
-    }
+  PAYLINES.forEach(
+    (payline, paylineIndex) => {
+      const lineSymbols =
+        payline.map(
+          (row, reel) =>
+            board[reel][row],
+        )
 
-    // Find the first normal symbol.
-    // This allows paylines beginning with one or more Wilds.
-    const targetSymbol = lineSymbols.find(
-      (symbol) =>
-        symbol !== 'wild' &&
-        symbol !== 'scatter',
-    )
-
-    // A line made entirely of Wild/Scatter currently has
-    // no normal-symbol payout rule.
-    if (!targetSymbol) {
-      return
-    }
-
-    const symbolPaytable = PAYTABLE[targetSymbol]
-
-    if (!symbolPaytable) {
-      return
-    }
-
-    let matchCount = 0
-    const positions: WinningPosition[] = []
-
-    for (let reel = 0; reel < lineSymbols.length; reel += 1) {
-      const symbol = lineSymbols[reel]
-
+      // Scatter cannot initiate
+      // a normal line win.
       if (
-        symbol === targetSymbol ||
-        symbol === 'wild'
+        lineSymbols[0] ===
+        'scatter'
       ) {
-        matchCount += 1
-
-        positions.push({
-          reel,
-          row: payline[reel],
-        })
-
-        continue
+        return
       }
 
-      break
-    }
+      // Find first normal symbol.
+      // This allows:
+      //
+      // WILD WILD RUBY RUBY ...
+      //
+      // to use Ruby as the target.
+      const targetSymbol =
+        lineSymbols.find(
+          (symbol) =>
+            symbol !== 'wild' &&
+            symbol !== 'scatter',
+        )
 
-    if (matchCount < 3) {
-      return
-    }
+      if (!targetSymbol) {
+        return
+      }
 
-    const validMatchCount = matchCount as 3 | 4 | 5
+      const symbolPaytable =
+        PAYTABLE[targetSymbol]
 
-    const multiplier =
-      symbolPaytable[validMatchCount]
+      if (!symbolPaytable) {
+        return
+      }
 
-    const payout = bet * multiplier
+      let matchCount = 0
 
-    lineWins.push({
-      paylineIndex,
-      symbolId: targetSymbol,
-      matchCount,
-      multiplier,
-      payout,
-      positions,
-    })
-  })
+      const positions:
+        WinningPosition[] = []
 
-  const totalWin = lineWins.reduce(
-    (total, lineWin) => total + lineWin.payout,
-    0,
+      for (
+        let reel = 0;
+        reel < lineSymbols.length;
+        reel += 1
+      ) {
+        const symbol =
+          lineSymbols[reel]
+
+        if (
+          symbol === targetSymbol ||
+          symbol === 'wild'
+        ) {
+          matchCount += 1
+
+          positions.push({
+            reel,
+            row: payline[reel],
+          })
+
+          continue
+        }
+
+        break
+      }
+
+      if (matchCount < 3) {
+        return
+      }
+
+      const validMatchCount =
+        matchCount as
+          | 3
+          | 4
+          | 5
+
+      const multiplier =
+        symbolPaytable[
+          validMatchCount
+        ]
+
+      const payout =
+        Number(
+          (
+            betPerLine *
+            multiplier
+          ).toFixed(2),
+        )
+
+      lineWins.push({
+        paylineIndex,
+        symbolId:
+          targetSymbol,
+        matchCount,
+        multiplier,
+        payout,
+        positions,
+      })
+    },
   )
+
+  const totalWin =
+    Number(
+      lineWins
+        .reduce(
+          (
+            total,
+            lineWin,
+          ) =>
+            total +
+            lineWin.payout,
+          0,
+        )
+        .toFixed(2),
+    )
 
   return {
     totalWin,
