@@ -11,6 +11,10 @@ export const SLOT_CONFIG = {
 
   betOptions: [1, 2, 5, 10, 20, 50],
 
+  // Prototype chance:
+  // 0.25 = 25% chance per Free Spin.
+  nagaBlessingChance: 0.25,
+
   freeSpins: {
     threeScatters: 8,
     fourScatters: 12,
