@@ -4,23 +4,25 @@ export const GAME_HEIGHT = 700
 export const SLOT_CONFIG = {
   reels: 5,
   rows: 3,
-
   startingBalance: 10000,
-
   defaultBet: 10,
-
   betOptions: [1, 2, 5, 10, 20, 50],
 
-  // Chance per Free Spin for Naga Blessing.
-  nagaBlessingChance: 0.18,
+  nagaBlessingChance: 0.10,
 
-  maxFreeSpinMultiplier: 6,
+  maxFreeSpinMultiplier: 4,
 
   maxStickyWilds: 3,
 
+  // Bonus-only payout boost.
+  // Normal spins use the paytable normally.
+  // Free Spin base wins receive this multiplier
+  // before the normal Free Spin multiplier (x1–x4).
+  freeSpinPayoutMultiplier: 1.25,
+
   freeSpins: {
-    threeScatters: 10,
-    fourScatters: 15,
-    fiveScatters: 20,
+    threeScatters: 8,
+    fourScatters: 10,
+    fiveScatters: 12,
   },
 }

@@ -372,11 +372,8 @@ export default class SlotScene extends Phaser.Scene {
   // STICKY WILD HELPERS
   // =========================================================
 
-  private getPositionKey(
-    reel: number,
-    row: number,
-  ): string {
-    return `${reel}-${row}`
+  private getPositionKey(reel: number, row: number): string {
+    return reel + '-' + row
   }
 
   private isStickyWild(
